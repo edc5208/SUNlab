@@ -1,0 +1,81 @@
+---
+title: "Step8_DesignMatCon"
+author: "name"
+date: "2024-06-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# I. Loading in Packages, Setting Working Directories & File Imports
+```{r, include=TRUE, echo=TRUE}
+stopper <- function() {
+  message(".Rmd chunk halted for troubleshooting. Press any key to continue") #for troubleshooting if needed
+  readline(prompt = "")
+}
+
+library(stringr)
+library(dplyr)
+library(psych)
+library(readxl)
+
+setwd("/Users/skb5989/Library/CloudStorage/OneDrive-ThePennsylvaniaStateUniversity/PENN STATE UNIVERSITY (2023-2028)/NEUROIMAGING & SUBSTANCE ABUSE RESEARCH/White Matter Connectivity & AUD (FALL 2023)/AUD and Craving Neurocircuitry Attempt") #where your necessary files are. This is also where this script will save out .txt files needed for GLM setup in Step 9.
+
+fa.files <- read.table("origdata_list.txt", header = FALSE, sep = "\t") #subject identifiers list for study at hand
+
+demographics.data <- read.table('final_data.txt', header=T, sep='\t') #the list of subjects and all demographics/psychometrics
+
+#Filtering the demographics data .txt file by subject identifier.
+fa.files.id <- matrix(nrow = dim(fa.files)[1], ncol = 1)
+for (i in 1:dim(fa.files)[1]){
+  fa.files.id[i] = (str_split(str_split(fa.files[i,], "_")[[1]][1], "-")[[1]][2])
+}
+final.data <- demographics.data[(demographics.data$ursi %in% fa.files.id),] #just isolating the URSI subject identifiers that match
+final.data <- final.data[,c("ursi","age","educ","latino","amer.indian","asian","black","native.hawaiian","white","male","cigdays","mjdays","aud.current","v1.ADS.total","v1.AUDIT.total","auq.pre","ddd","hdd","phdd","avg.days.per.week.drink","age.reg.drink", "aud.sx.count","age.first.alc.drink","heaviest.period.days.per.week","heaviest.period.drinks.per.day","yrs.drink.curr.level","pos.urgency","neg.urgency","lack.persev","lack.premed","sens.seek")] #more variables are pulled here than needed
+```
+
+# II. Generating design.mat and design.con Files
+```{r, include=TRUE, echo = TRUE}
+#Recoding some variables for ease of use.
+final.data$cigdays <- ifelse(is.na(final.data$cigdays) | final.data$cigdays < 1, 0, 1) #smoking status binary
+final.data$mjdays <- ifelse(is.na(final.data$mjdays) | final.data$mjdays < 1, 0, 1) #marijuana use binary
+final.data$educ <- as.numeric(final.data$educ) #some NA cells are coerced due to missingness
+final.data$avg.days.per.week.drink <- ifelse(final.data$avg.days.per.week.drink > 7, NA, final.data$avg.days.per.week.drink) 
+
+#DESIGN.MAT FILE CREATION
+design.mat <- matrix(ncol = 8, nrow = nrow(final.data)) #factors: AUD M, AUD F, CON M, CON F. with covariates of age, age-squared, smoking status and marijuana use right now
+colnames(design.mat) <- c("AUD_M","AUD_F","SD_M","SD_F","Age","Age_sq","Nic_Smoker","MJ_Smoker")
+for (i in 1:dim(final.data)[1]){
+  if (final.data[i,"aud.current"] == 1 && final.data[i,"male"] == 1){ #AUD M
+      design.mat[i,] = c(1,0,0,0,as.numeric(final.data[i,"age"]),as.numeric(final.data[i,"age"])^2,as.numeric(final.data[i,"cigdays"]),as.numeric(final.data[i,"mjdays"]))}
+  else if (final.data[i,"aud.current"] == 1 && final.data[i,"male"] == 0){ #AUD F
+      design.mat[i,] = c(0,1,0,0,as.numeric(final.data[i,"age"]),as.numeric(final.data[i,"age"])^2,as.numeric(final.data[i,"cigdays"]),as.numeric(final.data[i,"mjdays"]))}
+  else if (final.data[i,"aud.current"] == 0 && final.data[i,"male"] == 1){ #SD M
+      design.mat[i,] = c(0,0,1,0,as.numeric(final.data[i,"age"]),as.numeric(final.data[i,"age"])^2,as.numeric(final.data[i,"cigdays"]),as.numeric(final.data[i,"mjdays"]))}
+  else if (final.data[i,"aud.current"] == 0 && final.data[i,"male"] == 0){ #SD F
+      design.mat[i,] = c(0,0,0,1,as.numeric(final.data[i,"age"]),as.numeric(final.data[i,"age"])^2,as.numeric(final.data[i,"cigdays"]),as.numeric(final.data[i,"mjdays"]))}
+}
+#Mean centering age, age squared, and smoking status covariates.
+design.mat <- as.data.frame(design.mat) #mean-centering
+design.mat <- design.mat %>%
+  mutate(Age = Age - mean(Age))
+design.mat <- design.mat %>%
+  mutate(Age_sq = Age_sq - mean(Age_sq))
+design.mat <- design.mat %>%
+  mutate(Nic_Smoker = Nic_Smoker - mean(Nic_Smoker))
+design.mat <- design.mat %>%
+  mutate(MJ_Smoker = MJ_Smoker - mean(MJ_Smoker))
+write.table(design.mat, "design_mat.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE) #EXPORTING AS .TXT
+
+design.con <- matrix(ncol = 7, nrow = 6) #AUD>CON, AUD<CON, M>F, F>M, interaction both ways
+design.con[1,] <- c(1,1,-1,-1,0,0,0)
+design.con[2,] <- c(-1,-1,1,1,0,0,0)
+design.con[3,] <- c(1,-1,1,-1,0,0,0)
+design.con[4,] <- c(-1,1,-1,1,0,0,0)
+design.con[5,] <- c(1,-1,-1,1,0,0,0)
+design.con[6,] <- c(-1,1,1,-1,0,0,0)
+
+write.table(design.con, "design_con.txt", sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE) #EXPORTING AS .TXT
+```
