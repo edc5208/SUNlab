@@ -1,0 +1,453 @@
+---
+title: "Step12_StatisticalAnalysis"
+author: "Sunderland Baker"
+date: "2024-06-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# I. Loading in Packages, Setting Working Directories & File Imports
+```{r, include=TRUE, echo=TRUE}
+stopper <- function() {
+  message(".Rmd chunk halted for troubleshooting. Press any key to continue") #for troubleshooting if needed
+  readline(prompt = "")
+}
+
+library(stringr)
+library(dplyr)
+library(psych)
+library(readxl)
+
+setwd("/Users/skb5989/Library/CloudStorage/OneDrive-ThePennsylvaniaStateUniversity/PENN STATE UNIVERSITY (2023-2028)/NEUROIMAGING & SUBSTANCE ABUSE RESEARCH/White Matter Connectivity & AUD (FALL 2023)/AUD and Craving Neurocircuitry Attempt") #where your necessary files are. This is also where this script will save out .txt files needed for GLM setup in Step 9.
+
+fa.files <- read.table("origdata_list.txt", header = FALSE, sep = "\t") #subject identifiers list for study at hand
+
+demographics.data <- read.table('final_data.txt', header=T, sep='\t') #the list of subjects and all demographics/psychometrics
+
+#Filtering the demographics data .txt file by subject identifier.
+fa.files.id <- matrix(nrow = dim(fa.files)[1], ncol = 1)
+for (i in 1:dim(fa.files)[1]){
+  fa.files.id[i] = (str_split(str_split(fa.files[i,], "_")[[1]][1], "-")[[1]][2])
+}
+final.data <- demographics.data[(demographics.data$ursi %in% fa.files.id),] #just isolating the URSI subject identifiers that match
+final.data <- final.data[,c("ursi","age","educ","latino","amer.indian","asian","black","native.hawaiian","white","male","cigdays","mjdays","aud.current","v1.ADS.total","v1.AUDIT.total","auq.pre","ddd","hdd","phdd","avg.days.per.week.drink","age.reg.drink", "aud.sx.count","age.first.alc.drink","heaviest.period.days.per.week","heaviest.period.drinks.per.day","yrs.drink.curr.level","pos.urgency","neg.urgency","lack.persev","lack.premed","sens.seek")] #more variables are pulled here than needed
+
+cluster.md.data95 <- read.table("Average_MD_tbss_tfce_corrp_fstat1.nii.gz_95thresh_Agg.txt") #cluster-wise averaged
+cluster.ad.data95 <- read.table("Average_AD_tbss_tfce_corrp_fstat1.nii.gz_95thresh_Agg.txt") #cluster-wise averaged
+cluster.odi.data95 <- read.table("Average_NODDI_ODI_tbss_tfce_corrp_fstat1.nii.gz_95thresh_Agg.txt") #cluster-wise averaged
+cluster.ad.data993 <- read.table("Average_AD_tbss_tfce_corrp_fstat1.nii.gz_993thresh_Agg.txt") #cluster-wise averaged
+cluster.odi.data993 <- read.table("Average_NODDI_ODI_tbss_tfce_corrp_fstat1.nii.gz_993thresh_Agg.txt") #cluster-wise averaged
+```
+
+# II. Descriptive & Inferential Statistics for Tables 1-2
+```{r, include=TRUE, echo = TRUE}
+# DEMOGRAPHIC DIFFERENCES BETWEEN GROUPS
+aud.data <- final.data[(which(final.data$aud.current==1)),]
+sd.data <- final.data[(which(final.data$aud.current==0)),]
+#t-tests or Mann-Whitney U for continuous vars. Organized such that female data are presented first, then male.
+
+#AGE
+norm1 <- shapiro.test(aud.data$age);norm1
+test1 <- wilcox.test(aud.data$age~aud.data$male, exact = F);test1
+paste(tapply(aud.data$age, aud.data$male, mean, na.rm = T),tapply(aud.data$age, aud.data$male, sd, na.rm = T)) # AUD M / F
+norm2 <- shapiro.test(sd.data$age);norm2
+test2 <- wilcox.test(sd.data$age~sd.data$male, exact = F);test2
+paste(tapply(sd.data$age, sd.data$male, mean, na.rm = T),tapply(sd.data$age, sd.data$male, sd, na.rm = T)) # SD M / F
+norm3 <- shapiro.test(final.data$age);norm3
+test3 <- wilcox.test(final.data$age~final.data$male, exact = F);test3
+paste(tapply(final.data$age, final.data$male, mean, na.rm = T),tapply(final.data$age, final.data$male, sd, na.rm = T)) # M / F
+
+#EDUCATION LEVEL
+norm1 <- shapiro.test(as.numeric(aud.data$educ));norm1
+test1 <- wilcox.test(as.numeric(aud.data$educ)~aud.data$male, exact = F);test1
+paste(tapply(as.numeric(aud.data$educ), aud.data$male, mean, na.rm = T),tapply(as.numeric(aud.data$educ), aud.data$male, sd, na.rm = T)) # AUD M / F
+norm2 <- shapiro.test(as.numeric(sd.data$educ));norm2
+test2 <- wilcox.test(as.numeric(sd.data$educ)~sd.data$male, exact = F);test2
+paste(tapply(as.numeric(sd.data$educ), sd.data$male, mean, na.rm = T),tapply(as.numeric(sd.data$educ), sd.data$male, sd, na.rm = T)) # SD M / F
+norm3 <- shapiro.test(as.numeric(final.data$educ));norm3
+test3 <- wilcox.test(as.numeric(final.data$educ)~final.data$male, exact = F);test2
+paste(tapply(as.numeric(final.data$educ), final.data$male, mean, na.rm = T),tapply(as.numeric(final.data$educ), final.data$male, sd, na.rm = T)) # M / F
+
+#SEX
+cont.table <- table(final.data$aud.current, final.data$male)
+test1 <- chisq.test(cont.table);test1
+paste(mean(aud.data$male, na.rm = TRUE), mean(sd.data$male))
+
+#WHITE
+cont.table1 <- table(aud.data$white, aud.data$male)
+test1 <- chisq.test(cont.table1);test1
+paste(tapply(aud.data$white, aud.data$male, mean, na.rm = T)) #AUD M / F
+cont.table2 <- table(sd.data$white, sd.data$male)
+test2 <- chisq.test(cont.table2);test2
+paste(tapply(sd.data$white, sd.data$male, mean, na.rm = T)) #SD M / F
+cont.table3 <- table(final.data$white, final.data$male)
+test3 <- chisq.test(cont.table3);test3
+paste(tapply(final.data$white, final.data$male, mean, na.rm = T)) #M / F
+
+#BLACK/AFRICAN AMERICAN
+cont.table1 <- table(aud.data$black, aud.data$male)
+test1 <- chisq.test(cont.table1);test1
+paste(tapply(aud.data$black, aud.data$male, mean, na.rm = T)) #AUD M / F
+cont.table2 <- table(sd.data$black, sd.data$male)
+test2 <- chisq.test(cont.table2);test2
+paste(tapply(sd.data$black, sd.data$male, mean, na.rm = T)) #SD M / F
+cont.table3 <- table(final.data$black, final.data$male)
+test3 <- chisq.test(cont.table3);test3
+paste(tapply(final.data$black, final.data$male, mean, na.rm = T)) #M / F
+
+#ASIAN
+cont.table1 <- table(aud.data$asian, aud.data$male)
+test1 <- chisq.test(cont.table1);test1
+paste(tapply(aud.data$asian, aud.data$male, mean, na.rm = T)) #AUD M / F
+cont.table2 <- table(sd.data$asian, sd.data$male)
+test2 <- chisq.test(cont.table2);test2
+paste(tapply(sd.data$asian, sd.data$male, mean, na.rm = T)) #SD M / F
+cont.table3 <- table(final.data$asian, final.data$male)
+test3 <- chisq.test(cont.table3);test3
+paste(tapply(final.data$asian, final.data$male, mean, na.rm = T)) #M / F
+
+#PACIFIC ISLANDER
+cont.table1 <- table(aud.data$native.hawaiian, aud.data$male)
+test1 <- chisq.test(cont.table1);test1
+paste(tapply(aud.data$native.hawaiian, aud.data$male, mean, na.rm = T)) #AUD M / F
+cont.table2 <- table(sd.data$native.hawaiian, sd.data$male)
+test2 <- chisq.test(cont.table2);test2
+paste(tapply(sd.data$native.hawaiian, sd.data$male, mean, na.rm = T)) #SD M / F
+cont.table3 <- table(final.data$native.hawaiian, final.data$male)
+test3 <- chisq.test(cont.table3);test3
+paste(tapply(final.data$native.hawaiian, final.data$male, mean, na.rm = T)) #M / F
+
+#NATIVE AMERICAN
+cont.table1 <- table(aud.data$amer.indian, aud.data$male)
+test1 <- chisq.test(cont.table1);test1
+paste(tapply(aud.data$amer.indian, aud.data$male, mean, na.rm = T)) #AUD M / F
+cont.table2 <- table(sd.data$amer.indian, sd.data$male)
+test2 <- chisq.test(cont.table2);test2
+paste(tapply(sd.data$amer.indian, sd.data$male, mean, na.rm = T)) #SD M / F
+cont.table3 <- table(final.data$amer.indian, final.data$male)
+test3 <- chisq.test(cont.table3);test3
+paste(tapply(final.data$amer.indian, final.data$male, mean, na.rm = T)) #M / F
+
+#HISPANIC/LATINO
+cont.table1 <- table(aud.data$latino, aud.data$male)
+test1 <- chisq.test(cont.table1);test1
+paste(tapply(aud.data$latino, aud.data$male, mean, na.rm = T)) #AUD M / F
+cont.table2 <- table(sd.data$latino, sd.data$male)
+test2 <- chisq.test(cont.table2);test2
+paste(tapply(sd.data$latino, sd.data$male, mean, na.rm = T)) #SD M / F
+cont.table3 <- table(final.data$latino, final.data$male)
+test3 <- chisq.test(cont.table3);test3
+paste(tapply(final.data$latino, final.data$male, mean, na.rm = T)) #M / F
+
+#NICOTINE USE
+cont.table1 <- table(aud.data$cigdays, aud.data$male)
+test1 <- chisq.test(cont.table1);test1
+paste(tapply(aud.data$cigdays, aud.data$male, mean, na.rm = T)) #AUD M / F
+cont.table2 <- table(sd.data$cigdays, sd.data$male)
+test2 <- chisq.test(cont.table2);test2
+paste(tapply(sd.data$cigdays, sd.data$male, mean, na.rm = T)) #SD M / F
+cont.table3 <- table(final.data$cigdays, final.data$male)
+test3 <- chisq.test(cont.table3);test2
+paste(tapply(final.data$cigdays, final.data$male, mean, na.rm = T)) #M / F
+
+#MARIJUANA USE
+cont.table1 <- table(aud.data$mjdays, aud.data$male)
+test1 <- chisq.test(cont.table1);test1
+paste(tapply(aud.data$mjdays, aud.data$male, mean, na.rm = T)) #AUD M / F
+cont.table2 <- table(sd.data$mjdays, sd.data$male)
+test2 <- chisq.test(cont.table2);test2
+paste(tapply(sd.data$mjdays, sd.data$male, mean, na.rm = T)) #SD M / F
+cont.table3 <- table(final.data$mjdays, final.data$male)
+test3 <- chisq.test(cont.table3);test3
+paste(tapply(final.data$mjdays, final.data$male, mean, na.rm = T)) #M / F
+
+#AGE OF FIRST DRINK
+norm1 <- shapiro.test(aud.data$age.first.alc.drink);norm1
+test1 <- t.test(aud.data$age.first.alc.drink~aud.data$male);test1
+paste(tapply(aud.data$age.first.alc.drink, aud.data$male, mean, na.rm = T),tapply(aud.data$age.first.alc.drink, aud.data$male, sd, na.rm = T)) # AUD M / F
+norm2 <- shapiro.test(sd.data$age.first.alc.drink);norm2
+test2 <- t.test(sd.data$age.first.alc.drink~sd.data$male);test2
+paste(tapply(sd.data$age.first.alc.drink, sd.data$male, mean, na.rm = T),tapply(sd.data$age.first.alc.drink, sd.data$male, sd, na.rm = T)) # SD M / F
+norm3 <- shapiro.test(final.data$age.first.alc.drink);norm3
+test3 <- t.test(final.data$age.first.alc.drink~final.data$male);test3
+paste(tapply(final.data$age.first.alc.drink, final.data$male, mean, na.rm = T),tapply(final.data$age.first.alc.drink, final.data$male, sd, na.rm = T)) #M / F
+
+#AGE OF FIRST REGULAR ALCOHOL USE
+norm1 <- shapiro.test(aud.data$age.reg.drink);norm1
+test1 <- wilcox.test(aud.data$age.reg.drink~aud.data$male, exact = F);test1
+paste(tapply(aud.data$age.reg.drink, aud.data$male, mean, na.rm = T),tapply(aud.data$age.reg.drink, aud.data$male, sd, na.rm = T)) # AUD M / F
+norm2 <- shapiro.test(sd.data$age.reg.drink);norm2
+test2 <- t.test(sd.data$age.reg.drink~sd.data$male);test2
+paste(tapply(sd.data$age.reg.drink, sd.data$male, mean, na.rm = T),tapply(sd.data$age.reg.drink, sd.data$male, sd, na.rm = T)) # SD M / F
+norm3 <- shapiro.test(final.data$age.reg.drink);norm3
+test3 <- t.test(final.data$age.reg.drink~final.data$male);test3
+paste(tapply(final.data$age.reg.drink, final.data$male, mean, na.rm = T),tapply(final.data$age.reg.drink, final.data$male, sd, na.rm = T)) #M / F
+
+#HEAVIEST PERIOD DRINKING DAYS PER WEEK
+norm1 <- shapiro.test(aud.data$heaviest.period.days.per.week);norm1
+test1 <- wilcox.test(aud.data$heaviest.period.days.per.week~aud.data$male, exact = F);test1
+paste(tapply(aud.data$heaviest.period.days.per.week, aud.data$male, mean, na.rm = T),tapply(aud.data$heaviest.period.days.per.week, aud.data$male, sd, na.rm = T)) # AUD M / F
+norm2 <- shapiro.test(sd.data$heaviest.period.days.per.week);norm2
+test2 <- wilcox.test(sd.data$heaviest.period.days.per.week~sd.data$male, exact = F);test2
+paste(tapply(sd.data$heaviest.period.days.per.week, sd.data$male, mean, na.rm = T),tapply(sd.data$heaviest.period.days.per.week, sd.data$male, sd, na.rm = T)) # SD M / F
+norm3 <- shapiro.test(final.data$heaviest.period.days.per.week);norm3
+test3 <- wilcox.test(final.data$heaviest.period.days.per.week~final.data$male, exact = F);test3
+paste(tapply(final.data$heaviest.period.days.per.week, final.data$male, mean, na.rm = T),tapply(final.data$heaviest.period.days.per.week, final.data$male, sd, na.rm = T)) #M / F
+
+#HEAVIEST PERIOD DRINKS PER DAY
+norm1 <- shapiro.test(aud.data$heaviest.period.drinks.per.day);norm1
+test1 <- wilcox.test(aud.data$heaviest.period.drinks.per.day~aud.data$male, exact = F);test1
+paste(tapply(aud.data$heaviest.period.drinks.per.day, aud.data$male, mean, na.rm = T),tapply(aud.data$heaviest.period.drinks.per.day, aud.data$male, sd, na.rm = T)) # AUD M / F
+norm2 <- shapiro.test(sd.data$heaviest.period.drinks.per.day);norm2
+test2 <- wilcox.test(sd.data$heaviest.period.drinks.per.day~sd.data$male, exact = F);test2
+paste(tapply(sd.data$heaviest.period.drinks.per.day, sd.data$male, mean, na.rm = T),tapply(sd.data$heaviest.period.drinks.per.day, sd.data$male, sd, na.rm = T)) # SD M / F
+norm3 <- shapiro.test(final.data$heaviest.period.drinks.per.day);norm3
+test3 <- wilcox.test(final.data$heaviest.period.drinks.per.day~final.data$male, exact = F);test3
+paste(tapply(final.data$heaviest.period.drinks.per.day, final.data$male, mean, na.rm = T),tapply(final.data$heaviest.period.drinks.per.day, final.data$male, sd, na.rm = T)) #M / F
+
+#YEARS OF DRINKING AT CURRENT LEVEL
+norm1 <- shapiro.test(aud.data$yrs.drink.curr.level);norm1
+test1 <- t.test(aud.data$yrs.drink.curr.level~aud.data$male);test1
+paste(tapply(aud.data$yrs.drink.curr.level, aud.data$male, mean, na.rm = T),tapply(aud.data$yrs.drink.curr.level, aud.data$male, sd, na.rm = T)) # AUD M / F
+norm2 <- shapiro.test(sd.data$yrs.drink.curr.level);norm2
+test2 <- wilcox.test(sd.data$yrs.drink.curr.level~sd.data$male, exact = F);test2
+paste(tapply(sd.data$yrs.drink.curr.level, sd.data$male, mean, na.rm = T),tapply(sd.data$yrs.drink.curr.level, sd.data$male, sd, na.rm = T)) # SD M / F
+norm3 <- shapiro.test(final.data$yrs.drink.curr.level);norm3
+test3 <- wilcox.test(final.data$yrs.drink.curr.level~final.data$male, exact = F);test3
+paste(tapply(final.data$yrs.drink.curr.level, final.data$male, mean, na.rm = T),tapply(final.data$yrs.drink.curr.level, final.data$male, sd, na.rm = T)) #M / F
+
+#ADS TOTAL
+norm1 <- shapiro.test(aud.data$v1.ADS.total);norm1
+test1 <- wilcox.test(aud.data$v1.ADS.total~aud.data$male, exact = F);test1
+paste(tapply(aud.data$v1.ADS.total, aud.data$male, mean, na.rm = T),tapply(aud.data$v1.ADS.total, aud.data$male, sd, na.rm = T)) # AUD M / F
+norm2 <- shapiro.test(sd.data$v1.ADS.total);norm2
+test2 <- wilcox.test(sd.data$v1.ADS.total~sd.data$male, exact = F);test2
+paste(tapply(sd.data$v1.ADS.total, sd.data$male, mean, na.rm = T),tapply(sd.data$v1.ADS.total, sd.data$male, sd, na.rm = T)) # SD M / F
+norm3 <- shapiro.test(final.data$v1.ADS.total);norm3
+test3 <- wilcox.test(final.data$v1.ADS.total~final.data$male, exact = F);test3
+paste(tapply(final.data$v1.ADS.total, final.data$male, mean, na.rm = T),tapply(final.data$v1.ADS.total, final.data$male, sd, na.rm = T)) #M / F
+
+#AUDIT TOTAL
+norm1 <- shapiro.test(aud.data$v1.AUDIT.total);norm1
+test1 <- wilcox.test(aud.data$v1.AUDIT.total~aud.data$male, exact = F);test1
+paste(tapply(aud.data$v1.AUDIT.total, aud.data$male, mean, na.rm = T),tapply(aud.data$v1.AUDIT.total, aud.data$male, sd, na.rm = T)) # AUD M / F
+norm2 <- shapiro.test(sd.data$v1.AUDIT.total);norm2
+test2 <- wilcox.test(sd.data$v1.AUDIT.total~sd.data$male, exact = F);test2
+paste(tapply(sd.data$v1.AUDIT.total, sd.data$male, mean, na.rm = T),tapply(sd.data$v1.AUDIT.total, sd.data$male, sd, na.rm = T)) # SD M / F
+norm3 <- shapiro.test(final.data$v1.AUDIT.total);norm3
+test3 <- wilcox.test(final.data$v1.AUDIT.total~final.data$male, exact = F);test3
+paste(tapply(final.data$v1.AUDIT.total, final.data$male, mean, na.rm = T),tapply(final.data$v1.AUDIT.total, final.data$male, sd, na.rm = T)) #M / F
+
+#AUQ AVERAGE
+norm1 <- shapiro.test(aud.data$auq.pre);norm1
+test1 <- wilcox.test(aud.data$auq.pre~aud.data$male, exact = F);test1
+paste(tapply(aud.data$auq.pre, aud.data$male, mean, na.rm = T),tapply(aud.data$auq.pre, aud.data$male, sd, na.rm = T)) # AUD M / F
+norm2 <- shapiro.test(sd.data$auq.pre);norm2
+test2 <- wilcox.test(sd.data$auq.pre~sd.data$male, exact = F);test2
+paste(tapply(sd.data$auq.pre, sd.data$male, mean, na.rm = T),tapply(sd.data$auq.pre, sd.data$male, sd, na.rm = T)) # SD M / F
+norm3 <- shapiro.test(final.data$auq.pre);norm3
+test3 <- wilcox.test(final.data$auq.pre~final.data$male, exact = F);test3
+paste(tapply(final.data$auq.pre, final.data$male, mean, na.rm = T),tapply(final.data$auq.pre, final.data$male, sd, na.rm = T)) #M / F
+
+#DDD
+norm1 <- shapiro.test(aud.data$ddd);norm1
+test1 <- t.test(aud.data$ddd~aud.data$male);test1
+paste(tapply(aud.data$ddd, aud.data$male, mean, na.rm = T),tapply(aud.data$ddd, aud.data$male, sd, na.rm = T)) # AUD M / F
+norm2 <- shapiro.test(sd.data$ddd);norm2
+test2 <- wilcox.test(sd.data$ddd~sd.data$male, exact = F);test2
+paste(tapply(sd.data$ddd, sd.data$male, mean, na.rm = T),tapply(sd.data$ddd, sd.data$male, sd, na.rm = T)) # SD M / F
+norm3 <- shapiro.test(final.data$ddd);norm3
+test3 <- wilcox.test(final.data$ddd~final.data$male, exact = F);test3
+paste(tapply(final.data$ddd, final.data$male, mean, na.rm = T),tapply(final.data$ddd, final.data$male, sd, na.rm = T)) #M / F
+
+#HDD
+norm1 <- shapiro.test(aud.data$hdd);norm1
+test1 <- wilcox.test(aud.data$hdd~aud.data$male, exact = F);test1
+paste(tapply(aud.data$hdd, aud.data$male, mean, na.rm = T),tapply(aud.data$hdd, aud.data$male, sd, na.rm = T)) # AUD M / F
+norm2 <- shapiro.test(sd.data$hdd);norm2
+test2 <- wilcox.test(sd.data$hdd~sd.data$male, exact = F);test2
+paste(tapply(sd.data$hdd, sd.data$male, mean, na.rm = T),tapply(sd.data$hdd, sd.data$male, sd, na.rm = T)) # SD M / F
+norm3 <- shapiro.test(final.data$hdd);norm3
+test3 <- wilcox.test(final.data$hdd~final.data$male, exact = F);test3
+paste(tapply(final.data$hdd, final.data$male, mean, na.rm = T),tapply(final.data$hdd, final.data$male, sd, na.rm = T)) #M / F
+
+#SCID SYMPTOM COUNTS
+norm1 <- shapiro.test(aud.data$aud.sx.count);norm1
+test1 <- wilcox.test(aud.data$aud.sx.count~aud.data$male);test1
+paste(tapply(aud.data$aud.sx.count, aud.data$male, mean, na.rm = T),tapply(aud.data$aud.sx.count, aud.data$male, sd, na.rm = T)) # AUD M / F
+norm2 <- shapiro.test(sd.data$aud.sx.count);norm2
+test2 <- wilcox.test(sd.data$aud.sx.count~sd.data$male);test2
+paste(tapply(sd.data$aud.sx.count, sd.data$male, mean, na.rm = T),tapply(sd.data$aud.sx.count, sd.data$male, sd, na.rm = T)) # SD M / F
+norm3 <- shapiro.test(final.data$aud.sx.count);norm3
+test3 <- wilcox.test(final.data$aud.sx.count~final.data$male);test3
+paste(tapply(final.data$aud.sx.count, final.data$male, mean, na.rm = T),tapply(final.data$aud.sx.count, final.data$male, sd, na.rm = T)) #M / F
+```
+
+# III. Cluster-Level Analyses
+```{r setup, include=TRUE, echo = TRUE}
+aud_idx <- (which(final.data$aud.current==1) - 1);aud_idx #to match with numbering in Agg files
+averaged.md95 <- as.data.frame(matrix(nrow = 58, ncol = 2))
+colnames(averaged.md95) <- c("Value","AUD_Grp")
+averaged.ad95 <- as.data.frame(matrix(nrow = 58, ncol = 2))
+colnames(averaged.ad95) <- c("Value","AUD_Grp")
+averaged.odi95 <- as.data.frame(matrix(nrow = 58, ncol = 3))
+colnames(averaged.odi95) <- c("Value","AUD_Grp","Sex")
+averaged.ad993 <- as.data.frame(matrix(nrow = 58, ncol = 2))
+colnames(averaged.ad993) <- c("Value","AUD_Grp")
+averaged.odi993 <- as.data.frame(matrix(nrow = 58, ncol = 3))
+colnames(averaged.odi993) <- c("Value","AUD_Grp","Sex")
+
+for (i in seq(dim(cluster.md.data95)[2], dim(cluster.md.data95)[1], by = 2)){ #indexing 1:2:108 as in MATLAB
+  idx <- as.numeric(str_split(str_split(cluster.md.data95[i,],"_")[[1]][7],"\\.")[[1]][1])
+  if (idx %in% aud_idx){ #if the idx integer is contained in aud_idx
+    averaged.md95[((i+1)/2),1] = as.numeric(cluster.md.data95[i+1,1])
+    averaged.md95[((i+1)/2),2] = 1
+  }
+  else {
+    averaged.md95[((i+1)/2),1] = as.numeric(cluster.md.data95[i+1,1])
+    averaged.md95[((i+1)/2),2] = 0
+  }
+  if (idx %in% aud_idx){ #if the idx integer is contained in aud_idx
+    averaged.ad95[((i+1)/2),1] = as.numeric(cluster.ad.data95[i+1,1])
+    averaged.ad95[((i+1)/2),2] = 1
+  }
+  else {
+    averaged.ad95[((i+1)/2),1] = as.numeric(cluster.ad.data95[i+1,1])
+    averaged.ad95[((i+1)/2),2] = 0
+  }
+  if (idx %in% aud_idx){ #if the idx integer is contained in aud_idx
+    averaged.odi95[((i+1)/2),1] = as.numeric(cluster.odi.data95[i+1,1])
+    averaged.odi95[((i+1)/2),2] = 1
+  }
+  else {
+    averaged.odi95[((i+1)/2),1] = as.numeric(cluster.odi.data95[i+1,1])
+    averaged.odi95[((i+1)/2),2] = 0
+  }
+  if (idx %in% aud_idx){ #if the idx integer is contained in aud_idx
+    averaged.ad993[((i+1)/2),1] = as.numeric(cluster.ad.data993[i+1,1])
+    averaged.ad993[((i+1)/2),2] = 1
+  }
+  else {
+    averaged.ad993[((i+1)/2),1] = as.numeric(cluster.ad.data993[i+1,1])
+    averaged.ad993[((i+1)/2),2] = 0
+  }
+  if (idx %in% aud_idx){ #if the idx integer is contained in aud_idx
+    averaged.odi993[((i+1)/2),1] = as.numeric(cluster.odi.data993[i+1,1])
+    averaged.odi993[((i+1)/2),2] = 1
+  }
+  else {
+    averaged.odi993[((i+1)/2),1] = as.numeric(cluster.odi.data993[i+1,1])
+    averaged.odi993[((i+1)/2),2] = 0
+  }
+}
+
+AUD_Clst_MD_Summary95 <- averaged.md95 %>%
+  group_by(AUD_Grp) %>%
+  summarize(
+    mean = mean(Value),
+    stdev = sd(Value)
+  );AUD_Clst_MD_Summary95
+
+AUD_Clst_AD_Summary95 <- averaged.ad95 %>%
+  group_by(AUD_Grp) %>%
+  summarize(
+    mean = mean(Value),
+    stdev = sd(Value)
+  );AUD_Clst_AD_Summary95
+
+AUD_Clst_ODI_Summary95 <- averaged.odi95 %>%
+  group_by(AUD_Grp) %>%
+  summarize(
+    mean = mean(Value),
+    stdev = sd(Value)
+  );AUD_Clst_ODI_Summary95
+
+AUD_Clst_AD_Summary993 <- averaged.ad993 %>%
+  group_by(AUD_Grp) %>%
+  summarize(
+    mean = mean(Value),
+    stdev = sd(Value)
+  );AUD_Clst_AD_Summary993
+
+AUD_Clst_ODI_Summary993 <- averaged.odi993 %>%
+  group_by(AUD_Grp) %>%
+  summarize(
+    mean = mean(Value),
+    stdev = sd(Value)
+  );AUD_Clst_ODI_Summary993
+
+#P-Value < .05
+# BOX-AND-WHISKER PLOTS TO VISUALIZE DATA SPREAD
+colOR <- c("#E04A1A","#0096FF")
+level_order <- c("Control","Alcohol Use Disorder")
+averaged.md95$AUD_Grp <- ifelse(averaged.md95$AUD_Grp == 1, "AUD", "SD")
+
+boxplot1 <- ggplot(data = averaged.md95, aes(x = AUD_Grp, y = Value)) + geom_boxplot(position = "dodge") + geom_jitter(aes(color = AUD_Grp), width = 0.2) + scale_color_manual(values = c(colOR)) + theme(panel.background = element_rect(color = "black")) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_rect("white"),
+        panel.grid.major.y = element_line("gray90"),
+        plot.title = element_text(hjust = .5)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + labs(title = "Average MD Value at Largest Cluster") + labs(subtitle = "IQR Shown") + ylab("MD Value") + xlab("Stratum") + scale_y_continuous(expand = c(0,0), limits = c(0.00045, 0.00051), breaks = c(seq(0.00045,0.00051, by = 0.000015))) + theme_classic() +
+  theme(
+    panel.grid.major.y = element_line(linetype = "dotted", color = "gray80"),
+    plot.title = element_text(hjust = .5, size = 20, face = "bold"),
+    plot.subtitle = element_text(hjust = .5, size = 18),
+    legend.title.align = .5, axis.title.x = element_text(hjust = .5, size = 20), axis.title.y = element_text(hjust = .5, size = 20)) + theme(axis.title.x = element_text(face = "bold")) + theme(axis.title.x = element_text(hjust = 0.5)) + theme(axis.title.y = element_text(face = "bold")) + theme(axis.title.y = element_text(hjust = 0.5)) + theme(axis.text.y = element_text(face = "bold")) + guides(fill = "none") + coord_cartesian(ylim = c(0.00045,0.00051)) + theme(axis.text.x = element_text(face = "plain", color = "black", size = 16), axis.text.y = element_text(face = "plain", color = "black", size = 16));boxplot1
+
+# BOX-AND-WHISKER PLOTS TO VISUALIZE DATA SPREAD
+colOR <- c("#E04A1A","#0096FF")
+level_order <- c("Control","Alcohol Use Disorder")
+averaged.ad95$AUD_Grp <- ifelse(averaged.ad95$AUD_Grp == 1, "AUD", "SD")
+
+boxplot2 <- ggplot(data = averaged.ad95, aes(x = AUD_Grp, y = Value)) + geom_boxplot(position = "dodge") + geom_jitter(aes(color = AUD_Grp), width = 0.2) + scale_color_manual(values = c(colOR)) + theme(panel.background = element_rect(color = "black")) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_rect("white"),
+        panel.grid.major.y = element_line("gray90"),
+        plot.title = element_text(hjust = .5)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + labs(title = "Average AD Value at Largest Cluster") + labs(subtitle = "IQR Shown") + ylab("AD Value") + xlab("Stratum") + scale_y_continuous(expand = c(0,0), limits = c(0.0008, 0.001), breaks = c(seq(0.0008,0.001, by = 0.00005))) + theme_classic() +
+  theme(
+    panel.grid.major.y = element_line(linetype = "dotted", color = "gray80"),
+    plot.title = element_text(hjust = .5, size = 20, face = "bold"),
+    plot.subtitle = element_text(hjust = .5, size = 18),
+    legend.title.align = .5, axis.title.x = element_text(hjust = .5, size = 20), axis.title.y = element_text(hjust = .5, size = 20)) + theme(axis.title.x = element_text(face = "bold")) + theme(axis.title.x = element_text(hjust = 0.5)) + theme(axis.title.y = element_text(face = "bold")) + theme(axis.title.y = element_text(hjust = 0.5)) + theme(axis.text.y = element_text(face = "bold")) + guides(fill = "none") + coord_cartesian(ylim = c(0.0008,0.001)) + theme(axis.text.x = element_text(face = "plain", color = "black", size = 16), axis.text.y = element_text(face = "plain", color = "black", size = 16));boxplot2
+
+# BOX-AND-WHISKER PLOTS TO VISUALIZE DATA SPREAD
+colOR <- c("#E04A1A","#0096FF")
+level_order <- c("Control","Alcohol Use Disorder")
+averaged.odi95$AUD_Grp <- ifelse(averaged.odi95$AUD_Grp == 1, "AUD", "SD")
+
+boxplot3 <- ggplot(data = averaged.odi95, aes(x = AUD_Grp, y = Value)) + geom_boxplot(position = "dodge") + geom_jitter(aes(color = AUD_Grp), width = 0.2) + scale_color_manual(values = c(colOR)) + theme(panel.background = element_rect(color = "black")) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_rect("white"),
+        panel.grid.major.y = element_line("gray90"),
+        plot.title = element_text(hjust = .5)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + labs(title = "Average ODI Value at Largest Cluster") + labs(subtitle = "IQR Shown") + ylab("ODI Value") + xlab("Stratum") + scale_y_continuous(expand = c(0,0), limits = c(0.11, 0.17), breaks = c(seq(0.11,0.17, by = 0.01))) + theme_classic() +
+  theme(
+    panel.grid.major.y = element_line(linetype = "dotted", color = "gray80"),
+    plot.title = element_text(hjust = .5, size = 20, face = "bold"),
+    plot.subtitle = element_text(hjust = .5, size = 18),
+    legend.title.align = .5, axis.title.x = element_text(hjust = .5, size = 20), axis.title.y = element_text(hjust = .5, size = 20)) + theme(axis.title.x = element_text(face = "bold")) + theme(axis.title.x = element_text(hjust = 0.5)) + theme(axis.title.y = element_text(face = "bold")) + theme(axis.title.y = element_text(hjust = 0.5)) + theme(axis.text.y = element_text(face = "bold")) + guides(fill = "none") + coord_cartesian(ylim = c(0.11,0.17)) + theme(axis.text.x = element_text(face = "plain", color = "black", size = 16), axis.text.y = element_text(face = "plain", color = "black", size = 16));boxplot3
+
+# P-value < .007
+# BOX-AND-WHISKER PLOTS TO VISUALIZE DATA SPREAD
+colOR <- c("#E04A1A","#0096FF")
+level_order <- c("Control","Alcohol Use Disorder")
+averaged.ad993$AUD_Grp <- ifelse(averaged.ad993$AUD_Grp == 1, "AUD", "SD")
+
+boxplot2 <- ggplot(data = averaged.ad993, aes(x = AUD_Grp, y = Value)) + geom_boxplot(position = "dodge") + geom_jitter(aes(color = AUD_Grp), width = 0.2) + scale_color_manual(values = c(colOR)) + theme(panel.background = element_rect(color = "black")) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_rect("white"),
+        panel.grid.major.y = element_line("gray90"),
+        plot.title = element_text(hjust = .5)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + labs(title = "Average AD Value at Largest Cluster") + labs(subtitle = "IQR Shown") + ylab("AD Value") + xlab("Stratum") + scale_y_continuous(expand = c(0,0), limits = c(0.0008, 0.001), breaks = c(seq(0.0008,0.001, by = 0.00005))) + theme_classic() +
+  theme(
+    panel.grid.major.y = element_line(linetype = "dotted", color = "gray80"),
+    plot.title = element_text(hjust = .5, size = 20, face = "bold"),
+    plot.subtitle = element_text(hjust = .5, size = 18),
+    legend.title.align = .5, axis.title.x = element_text(hjust = .5, size = 20), axis.title.y = element_text(hjust = .5, size = 20)) + theme(axis.title.x = element_text(face = "bold")) + theme(axis.title.x = element_text(hjust = 0.5)) + theme(axis.title.y = element_text(face = "bold")) + theme(axis.title.y = element_text(hjust = 0.5)) + theme(axis.text.y = element_text(face = "bold")) + guides(fill = "none") + coord_cartesian(ylim = c(0.0008,0.001)) + theme(axis.text.x = element_text(face = "plain", color = "black", size = 16), axis.text.y = element_text(face = "plain", color = "black", size = 16));boxplot2
+
+# BOX-AND-WHISKER PLOTS TO VISUALIZE DATA SPREAD
+colOR <- c("#E04A1A","#0096FF")
+level_order <- c("Control","Alcohol Use Disorder")
+averaged.odi993$AUD_Grp <- ifelse(averaged.odi993$AUD_Grp == 1, "AUD", "SD")
+
+boxplot3 <- ggplot(data = averaged.odi993, aes(x = AUD_Grp, y = Value)) + geom_boxplot(position = "dodge") + geom_jitter(aes(color = AUD_Grp), width = 0.2) + scale_color_manual(values = c(colOR)) + theme(panel.background = element_rect(color = "black")) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_rect("white"),
+        panel.grid.major.y = element_line("gray90"),
+        plot.title = element_text(hjust = .5)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + labs(title = "Average ODI Value at Largest Cluster") + labs(subtitle = "IQR Shown") + ylab("ODI Value") + xlab("Stratum") + scale_y_continuous(expand = c(0,0), limits = c(0.10, 0.15), breaks = c(seq(0.10,0.15, by = 0.01))) + theme_classic() +
+  theme(
+    panel.grid.major.y = element_line(linetype = "dotted", color = "gray80"),
+    plot.title = element_text(hjust = .5, size = 20, face = "bold"),
+    plot.subtitle = element_text(hjust = .5, size = 18),
+    legend.title.align = .5, axis.title.x = element_text(hjust = .5, size = 20), axis.title.y = element_text(hjust = .5, size = 20)) + theme(axis.title.x = element_text(face = "bold")) + theme(axis.title.x = element_text(hjust = 0.5)) + theme(axis.title.y = element_text(face = "bold")) + theme(axis.title.y = element_text(hjust = 0.5)) + theme(axis.text.y = element_text(face = "bold")) + guides(fill = "none") + coord_cartesian(ylim = c(0.10,0.15)) + theme(axis.text.x = element_text(face = "plain", color = "black", size = 16), axis.text.y = element_text(face = "plain", color = "black", size = 16));boxplot3
+```
